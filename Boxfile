@@ -2,37 +2,22 @@
 # rascom Compiler Builder Configuration (Boxfile)
 # ============================================================
 
-CC        = gcc
-CFLAGS    = -Wall -Wextra -O2 -std=c99 -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -D_RASCOM_SAFETY_LEVEL=RUST -Iinclude -MD -MP
-LDFLAGS   = -pie -Wl,-z,relro,-z,now -lm
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -std=c99 -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -D_RASCOM_SAFETY_LEVEL=RUST -Iinclude -MD -MP
+LDFLAGS = -pie -Wl,-z,relro,-z,now -lm
+TARGET = rascom
 
-TARGET    = rascom
-
-# Compiler Objects
 OBJECTS = obj/main.o obj/lexer.o obj/parser.o obj/ast.o obj/codegen.o obj/codegen_optimize.o obj/common.o obj/builtins.o obj/packages.o obj/elfgen.o obj/assembler.o obj/linker.o obj/analyzer.o obj/optimizer.o obj/optimizer_advanced.o obj/memory_safety.o obj/optimization_pass_simd.o obj/register_allocator_improved.o obj/simd_vectorizer.o
 
-# Runtime Objects
-#RUNTIME_OBJECTS = obj/runtime/sync.o obj/runtime/channels.o obj/runtime/threadpool.o obj/runtime/network.o obj/runtime/fileio.o obj/runtime/memmap.o obj/runtime/hardware.o obj/runtime/advanced.o obj/runtime/strings.o obj/runtime/math.o obj/runtime/errors.o obj/runtime/process.o obj/runtime/concurrency.o obj/runtime/time.o obj/runtime/sorting.o obj/runtime/pure_runtime.o
+RUNTIME_OBJECTS = obj/runtime/sync.o obj/runtime/channels.o obj/runtime/threadpool.o obj/runtime/network.o obj/runtime/fileio.o obj/runtime/memmap.o obj/runtime/hardware.o obj/runtime/advanced.o obj/runtime/strings.o obj/runtime/math.o obj/runtime/errors.o obj/runtime/process.o obj/runtime/concurrency.o obj/runtime/time.o obj/runtime/sorting.o
 
 LOGO_OBJ = obj/logo.o
 
-# Option 2: Append with +=
-RUNTIME_OBJECTS  = obj/runtime/sync.o obj/runtime/channels.o obj/runtime/threadpool.o
-RUNTIME_OBJECTS += obj/runtime/network.o obj/runtime/fileio.o obj/runtime/memmap.o
-RUNTIME_OBJECTS += obj/runtime/hardware.o obj/runtime/advanced.o obj/runtime/strings.o
-RUNTIME_OBJECTS += obj/runtime/math.o obj/runtime/errors.o obj/runtime/process.o
-RUNTIME_OBJECTS += obj/runtime/concurrency.o obj/runtime/time.o obj/runtime/sorting.o
-
-.PHONY: clean distclean install
+.PHONY: clean distclean
 .DEFAULT: all
 
-# Header Dependency Files
 -include obj/*.d
 -include obj/runtime/*.d
-
-# ============================================================
-# Build Targets
-# ============================================================
 
 all: $(TARGET)
 
@@ -42,7 +27,6 @@ $(TARGET): $(OBJECTS) $(RUNTIME_OBJECTS) $(LOGO_OBJ)
 $(LOGO_OBJ): src/RasCom.jpg
 	objcopy -I binary -O elf64-x86-64 -B i386 --rename-section .data=.logo,alloc,load,readonly,data,contents $< $@
 
-# Pattern Rules
 obj/runtime/%.o: runtime/%.c
 	$(CC) $(CFLAGS) -MF obj/runtime/$*.d -c $< -o $@
 

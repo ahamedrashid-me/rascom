@@ -41,7 +41,7 @@ typedef struct {
     int functions_inlined;
     int loops_optimized;
     int register_allocations;
-    float estimated_speedup;      /* Predicted performance improvement % */
+    double optimize_time_ms;      /* Measured wall time of optimize_ast (ms) */
     
     /* Tracking */
     void *string_table;           /* Hash table for string deduplication */

@@ -5,14 +5,14 @@
 #include "ast.h"
 
 // Package search paths
-#define PKG_MAX_PATHS 10
+#define PKG_MAX_PATHS 16
 
 // Package information
 typedef struct {
     char *name;           // Package name
     char *file_path;      // Full path to package file
-    bool is_compiled;     // Is it a .raslib or .ras file?
-    ASTNode *ast;         // Parsed AST (if .ras file)
+    bool is_compiled;     // Is it a .rcp / .rclib (compiled package)?
+    ASTNode *ast;         // Parsed AST (if source package)
 } Package;
 
 // Package manager

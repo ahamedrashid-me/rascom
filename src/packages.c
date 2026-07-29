@@ -8,15 +8,15 @@
 
 static bool is_valid_package_name(const char *name) {
     if (!name || *name == '\0') return false;
-    
+
     /* Allow any file with extension or path */
     if (strchr(name, '.') != NULL || strchr(name, '/') != NULL) {
         return true;
     }
-    
+
     /* Standard package name validation */
     if (strstr(name, "..") != NULL || name[0] == '/') return false;
-    
+
     for (int i = 0; name[i]; i++) {
         if (!isalnum((unsigned char)name[i]) && name[i] != '_' && name[i] != '-') {
             return false;
@@ -25,13 +25,11 @@ static bool is_valid_package_name(const char *name) {
     return true;
 }
 
-// Check if file exists (non-static)
 bool file_exists(const char *path) {
     struct stat st;
     return stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
-// Create a new package manager
 PackageManager *pkg_manager_new(void) {
     PackageManager *mgr = xmalloc(sizeof(PackageManager));
     mgr->num_paths = 0;
@@ -39,7 +37,7 @@ PackageManager *pkg_manager_new(void) {
     mgr->num_loaded = 0;
     mgr->capacity = 0;
 
-    // Default search paths
+    /* Project-local first */
     pkg_manager_add_search_path(mgr, ".");
     pkg_manager_add_search_path(mgr, "./lib");
     pkg_manager_add_search_path(mgr, "./packages");
@@ -47,17 +45,19 @@ PackageManager *pkg_manager_new(void) {
     char *home = getenv("HOME");
     if (home) {
         char path[512];
+        snprintf(path, sizeof(path), "%s/.rascom/packages", home);
+        pkg_manager_add_search_path(mgr, path);
         snprintf(path, sizeof(path), "%s/.rascode/packages", home);
         pkg_manager_add_search_path(mgr, path);
     }
 
-    pkg_manager_add_search_path(mgr, "/usr/local/lib/rascode");
-    pkg_manager_add_search_path(mgr, "/usr/lib/rascode");
+    /* System package roots — RasBox installs .rcp packages here */
+    pkg_manager_add_search_path(mgr, "/usr/lib/rascom/packages");
+    pkg_manager_add_search_path(mgr, "/usr/local/lib/rascom/packages");
 
     return mgr;
 }
 
-// Free package manager
 void pkg_manager_free(PackageManager *mgr) {
     if (!mgr) return;
     for (int i = 0; i < mgr->num_paths; i++) {
@@ -70,7 +70,6 @@ void pkg_manager_free(PackageManager *mgr) {
     free(mgr);
 }
 
-// Add a search path
 void pkg_manager_add_search_path(PackageManager *mgr, const char *path) {
     if (mgr->num_paths >= PKG_MAX_PATHS) {
         fprintf(stderr, "Warning: Maximum package search paths reached\n");
@@ -79,57 +78,69 @@ void pkg_manager_add_search_path(PackageManager *mgr, const char *path) {
     mgr->search_paths[mgr->num_paths++] = xstrdup(path);
 }
 
-// Find package file
 char *pkg_find_file(PackageManager *mgr, const char *package_name) {
     if (!is_valid_package_name(package_name)) {
         fprintf(stderr, "Error: Invalid package name '%s'.\n", package_name);
         return NULL;
     }
-    
+
     /* Direct file path support */
     if (strstr(package_name, ".rco") != NULL || strstr(package_name, ".ras") != NULL ||
-        strstr(package_name, ".rclib") != NULL || strchr(package_name, '/') != NULL) {
+        strstr(package_name, ".rcp") != NULL || strstr(package_name, ".rclib") != NULL ||
+        strchr(package_name, '/') != NULL) {
         if (file_exists(package_name)) {
             return xstrdup(package_name);
         }
     }
-    
+
     char *path = xmalloc(MAX_PACKAGE_PATH);
-    
+
     for (int i = 0; i < mgr->num_paths; i++) {
-        // Try .rco first
-        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.rco", mgr->search_paths[i], package_name);
+        /* .rcp — RasCode Package (distributable) */
+        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.rcp", mgr->search_paths[i], package_name);
         if (file_exists(path)) {
             char *result = xstrdup(path);
             free(path);
             return result;
         }
-        
-        // Then .ras (legacy)
-        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.ras", mgr->search_paths[i], package_name);
+
+        /* Package directory forms */
+        snprintf(path, MAX_PACKAGE_PATH, "%s/%s/package.rcp", mgr->search_paths[i], package_name);
         if (file_exists(path)) {
             char *result = xstrdup(path);
             free(path);
             return result;
         }
-        
-        // Library
-        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.rclib", mgr->search_paths[i], package_name);
-        if (file_exists(path)) {
-            char *result = xstrdup(path);
-            free(path);
-            return result;
-        }
-        
-        // Subdirectory
         snprintf(path, MAX_PACKAGE_PATH, "%s/%s/main.rco", mgr->search_paths[i], package_name);
         if (file_exists(path)) {
             char *result = xstrdup(path);
             free(path);
             return result;
         }
+
+        /* Source */
+        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.rco", mgr->search_paths[i], package_name);
+        if (file_exists(path)) {
+            char *result = xstrdup(path);
+            free(path);
+            return result;
+        }
+
+        /* Legacy */
+        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.ras", mgr->search_paths[i], package_name);
+        if (file_exists(path)) {
+            char *result = xstrdup(path);
+            free(path);
+            return result;
+        }
+        snprintf(path, MAX_PACKAGE_PATH, "%s/%s.rclib", mgr->search_paths[i], package_name);
+        if (file_exists(path)) {
+            char *result = xstrdup(path);
+            free(path);
+            return result;
+        }
     }
-    
+
     free(path);
     return NULL;
 }
@@ -153,21 +164,21 @@ Package *pkg_manager_load(PackageManager *mgr, const char *package_name) {
         return NULL;
     }
 
-    // CRITICAL FIX: Prevent loading the current main file again
-    // This stops duplicate function generation
+    /* Prevent accidental self-import of the main translation unit */
     if (strstr(file_path, "tyr.rco") != NULL || strstr(package_name, "tyr") != NULL) {
         fprintf(stderr, "Warning: Skipping self-import of main file '%s'\n", package_name);
         free(file_path);
         return NULL;
     }
 
-    bool is_compiled = strstr(file_path, ".rclib") != NULL;
+    bool is_compiled = (strstr(file_path, ".rcp") != NULL ||
+                        strstr(file_path, ".rclib") != NULL);
     Package *pkg = package_new(package_name, file_path, is_compiled);
     free(file_path);
 
     if (mgr->num_loaded >= mgr->capacity) {
         mgr->capacity = mgr->capacity == 0 ? 8 : mgr->capacity * 2;
-        mgr->loaded_packages = xrealloc(mgr->loaded_packages, sizeof(Package*) * mgr->capacity);
+        mgr->loaded_packages = xrealloc(mgr->loaded_packages, sizeof(Package *) * mgr->capacity);
     }
     mgr->loaded_packages[mgr->num_loaded++] = pkg;
     return pkg;

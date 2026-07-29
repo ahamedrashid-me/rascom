@@ -1,4 +1,4 @@
-obj/optimizer.o: src/optimizer.c /usr/include/stdc-predef.h \
+obj/runtime/errors.o: runtime/errors.c /usr/include/stdc-predef.h \
  /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
  /usr/include/features.h /usr/include/features-time64.h \
@@ -28,16 +28,7 @@ obj/optimizer.o: src/optimizer.c /usr/include/stdc-predef.h \
  /usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h \
  /usr/include/x86_64-linux-gnu/bits/stdlib-float.h \
  /usr/include/x86_64-linux-gnu/bits/stdlib.h /usr/include/string.h \
- /usr/include/x86_64-linux-gnu/bits/string_fortified.h \
- /usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h /usr/include/time.h \
- /usr/include/x86_64-linux-gnu/bits/time.h \
- /usr/include/x86_64-linux-gnu/bits/types/clock_t.h \
- /usr/include/x86_64-linux-gnu/bits/types/time_t.h \
- /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h \
- src/../include/optimizer.h src/../include/ast.h src/../include/common.h \
- /usr/include/ctype.h /usr/include/x86_64-linux-gnu/bits/endian.h \
- /usr/include/x86_64-linux-gnu/bits/endianness.h src/../include/ast.h \
- src/../include/common.h
+ /usr/include/x86_64-linux-gnu/bits/string_fortified.h
 /usr/include/stdc-predef.h:
 /usr/include/stdio.h:
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
@@ -72,17 +63,3 @@ obj/optimizer.o: src/optimizer.c /usr/include/stdc-predef.h \
 /usr/include/x86_64-linux-gnu/bits/stdlib.h:
 /usr/include/string.h:
 /usr/include/x86_64-linux-gnu/bits/string_fortified.h:
-/usr/lib/gcc/x86_64-linux-gnu/13/include/stdbool.h:
-/usr/include/time.h:
-/usr/include/x86_64-linux-gnu/bits/time.h:
-/usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
-/usr/include/x86_64-linux-gnu/bits/types/time_t.h:
-/usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
-src/../include/optimizer.h:
-src/../include/ast.h:
-src/../include/common.h:
-/usr/include/ctype.h:
-/usr/include/x86_64-linux-gnu/bits/endian.h:
-/usr/include/x86_64-linux-gnu/bits/endianness.h:
-src/../include/ast.h:
-src/../include/common.h:

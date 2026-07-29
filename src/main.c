@@ -23,6 +23,7 @@
 static bool g_verbose = false;
 static bool g_show_time = false;
 static bool g_show_size = false;
+static bool g_compile_only = false;  /* -c: assemble to .o, do not link */
 
 // SECURITY: Safe process execution to prevent shell injection
 // Replaces system() with fork() + execvp()
@@ -91,53 +92,29 @@ static char *find_bundled_nasm(const char *argv0) {
     return NULL;  // Simplified: use system NASM only
 }
 
-// Find runtime/sync.o relative to the compiler executable location
+/*
+ * Runtime object lookup (sync.o is the probe file for the runtime dir):
+ *   1. /usr/lib/rascom/runtime/
+ *   2. /usr/local/lib/rascom/runtime/
+ *   3. ./obj/runtime/   (CWD — development only)
+ */
 static char *find_runtime_sync_o(const char *argv0) {
-    (void)argv0;  // Mark parameter as intentionally unused
-    static char sync_o_path[2048];
-    char exe_path[2048];
-    char dir[2048];
-    ssize_t len;
-    char *last_slash;
-    
-    // First, try to use /proc/self/exe to get executable path
-    len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-    if (len > 0) {
-        exe_path[len] = '\0';
-        
-        // Extract directory name manually (without dirname to avoid FORTIFY issues)
-        last_slash = strrchr(exe_path, '/');
-        if (last_slash) {
-            strncpy(dir, exe_path, last_slash - exe_path);
-            dir[last_slash - exe_path] = '\0';
-            
-            // Check if ./runtime/sync.o exists (same directory as binary)
-            snprintf(sync_o_path, sizeof(sync_o_path), "%s/runtime/sync.o", dir);
-            if (access(sync_o_path, F_OK) == 0) {
-                return sync_o_path;
-            }
-        }
-    }
-    
-    // Fallback: try relative to current directory
-    if (access("runtime/sync.o", F_OK) == 0) {
-        return "runtime/sync.o";
-    }
-    
-    // Last resort: absolute path for system installation
-    if (access("/usr/local/lib/RasCode/runtime/sync.o", F_OK) == 0) {
-        return "/usr/local/lib/RasCode/runtime/sync.o";
-    }
-    if (access("/usr/lib/RasCode/runtime/sync.o", F_OK) == 0) {
-        return "/usr/lib/RasCode/runtime/sync.o";
-    }
-    
-    // If nothing found, return the default relative path and let linker fail with clear error
-    return "runtime/sync.o";
+    (void)argv0;
+
+    if (access("/usr/lib/rascom/runtime/sync.o", F_OK) == 0)
+        return "/usr/lib/rascom/runtime/sync.o";
+
+    if (access("/usr/local/lib/rascom/runtime/sync.o", F_OK) == 0)
+        return "/usr/local/lib/rascom/runtime/sync.o";
+
+    if (access("obj/runtime/sync.o", F_OK) == 0)
+        return "obj/runtime/sync.o";
+
+    /* Default so linker errors name the canonical path */
+    return "/usr/lib/rascom/runtime/sync.o";
 }
 
 // Find all runtime object files and build linker arguments
-__attribute__((unused))
 static void build_runtime_objects(const char *argv0, char *runtime_objs, size_t maxlen) {
     const char *sync_o = find_runtime_sync_o(argv0);
     
@@ -147,8 +124,9 @@ static void build_runtime_objects(const char *argv0, char *runtime_objs, size_t 
     // Get directory for all runtime files
     char sync_copy[2048];
     strncpy(sync_copy, sync_o, sizeof(sync_copy) - 1);
+    sync_copy[sizeof(sync_copy) - 1] = '\0';
     char *last_slash = strrchr(sync_copy, '/');
-    char runtime_dir[2048] = "runtime";
+    char runtime_dir[2048] = "/usr/lib/rascom/runtime";
     
     if (last_slash) {
         *last_slash = '\0';
@@ -254,7 +232,8 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "  -h, --help           Display this help message\n");
     fprintf(stderr, "  -v, --version        Show version and configuration\n");
     fprintf(stderr, "  -V, --verbose        Show detailed compilation steps\n");
-    fprintf(stderr, "  -o <file>            Output executable name (default: a.out)\n");
+    fprintf(stderr, "  -o <file>            Output file name (default: a.out, or <input>.o with -c)\n");
+    fprintf(stderr, "  -c                   Compile only: produce object file (.o), do not link\n");
     fprintf(stderr, "\nOUTPUT INFORMATION:\n");
     fprintf(stderr, "  -tm                  Show total compilation time\n");
     fprintf(stderr, "  -sz                  Show compiled executable size\n");
@@ -295,7 +274,6 @@ static int compile_asm_to_binary(const char *asm_file, const char *output_file, 
     // Priority: NASM -> Internal assembler -> rasm
     // ============================================================================
     
-    (void)argv0;  // Not needed for system tools
     int ret;
     
     // NASM is the ONLY assembler - no fallbacks
@@ -305,54 +283,59 @@ static int compile_asm_to_binary(const char *asm_file, const char *output_file, 
         }
         
         char obj_file[256];
-        snprintf(obj_file, sizeof(obj_file), "%s.o", output_file);
-        
+        if (g_compile_only) {
+            /* Write the object file straight to the requested -o path */
+            snprintf(obj_file, sizeof(obj_file), "%s", output_file);
+        } else {
+            snprintf(obj_file, sizeof(obj_file), "%s.o", output_file);
+        }
+
         const char *nasm_args[] = {"nasm", "-f", "elf64", asm_file, "-o", obj_file, NULL};
         ret = safe_exec_many("nasm", nasm_args);
         
         if (ret == 0) {
             if (g_verbose) {
-                fprintf(stderr, "    ✓ NASM assembly: Success\n    Linking...\n");
+                fprintf(stderr, "    ✓ NASM assembly: Success\n");
             }
-            
-            // Build GCC linker command
-            char gcc_cmd[8192] = "gcc -nostartfiles -no-pie -o ";
-            strcat(gcc_cmd, output_file);   strcat(gcc_cmd, " ");
-            strcat(gcc_cmd, obj_file);
-            
-            // Add runtime modules
-            const char *runtime_modules[] = {
-                "obj/runtime/sync.o",
-                "obj/runtime/channels.o",
-                "obj/runtime/threadpool.o",
-                "obj/runtime/network.o",
-                "obj/runtime/fileio.o",
-                "obj/runtime/memmap.o",
-                "obj/runtime/hardware.o",
-                "obj/runtime/advanced.o",
-                "obj/runtime/strings.o",
-                "obj/runtime/math.o",
-                "obj/runtime/errors.o",
-                "obj/runtime/process.o",
-                "obj/runtime/concurrency.o",
-                "obj/runtime/time.o",
-                "obj/runtime/sorting.o",
-                NULL
-            };
-            
-            for (int i = 0; runtime_modules[i] != NULL; i++) {
-                strcat(gcc_cmd, " ");
-                strcat(gcc_cmd, runtime_modules[i]);
+
+            /* -c: compile only — object already at output_file, skip link */
+            if (g_compile_only) {
+                if (g_verbose) {
+                    fprintf(stderr, "    ✓ Object file: %s (compile only, not linked)\n", output_file);
+                }
+                return 0;
             }
-            
-            strcat(gcc_cmd, " -lm -lpthread");
-            
+
+            if (g_verbose) {
+                fprintf(stderr, "    Linking...\n");
+            }
+
+            /* Resolve runtime .o from system paths (or obj/runtime for dev) */
+            char runtime_objs[4096];
+            build_runtime_objects(argv0, runtime_objs, sizeof(runtime_objs));
+
+            if (g_verbose) {
+                fprintf(stderr, "    Runtime objects: %s\n", runtime_objs);
+            }
+
+            char gcc_cmd[8192];
+            snprintf(gcc_cmd, sizeof(gcc_cmd),
+                     "gcc -nostartfiles -no-pie -o %s %s %s -lm -lpthread",
+                     output_file, obj_file, runtime_objs);
+
             ret = system(gcc_cmd);
             unlink(obj_file);
-            
+
             if (ret == 0) {
                 return 0;
             }
+
+            fprintf(stderr,
+                    "Error: Linking failed.\n"
+                    "  Expected runtime under:\n"
+                    "    /usr/lib/rascom/runtime/\n"
+                    "    /usr/local/lib/rascom/runtime/\n"
+                    "    ./obj/runtime/   (dev)\n");
             return 1;
         }
         
@@ -395,6 +378,9 @@ int main(int argc, char **argv) {
             continue;
         } else if (strcmp(argv[i], "-sz") == 0) {
             g_show_size = true;
+            continue;
+        } else if (strcmp(argv[i], "-c") == 0) {
+            g_compile_only = true;
             continue;
         } else if (strcmp(argv[i], "-o") == 0) {
             if (i + 1 >= argc) {
@@ -473,6 +459,19 @@ int main(int argc, char **argv) {
         return 1;
     }
     
+    /* With -c and no -o, default output is <input_basename>.o */
+    static char default_obj[512];
+    if (g_compile_only && strcmp(output_file, "a.out") == 0) {
+        const char *base = input_file;
+        const char *slash = strrchr(input_file, '/');
+        if (slash) base = slash + 1;
+        snprintf(default_obj, sizeof(default_obj), "%s", base);
+        char *dot = strrchr(default_obj, '.');
+        if (dot) *dot = '\0';
+        strncat(default_obj, ".o", sizeof(default_obj) - strlen(default_obj) - 1);
+        output_file = default_obj;
+    }
+
     // SAFETY: Initialize mandatory memory safety layer
     // This must be done before any allocation occurs
     memory_safety_set_verbose(g_verbose);
