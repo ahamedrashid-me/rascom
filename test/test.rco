@@ -1,0 +1,190 @@
+// RasCode Builtin Functions Test Suite
+// Tests builtins from all categories: System, Memory, Type, String, Math, Security, etc.
+pkg:test;
+
+// ===== SYSTEM CONTROL TESTS =====
+
+fnc test_system[]::int {
+    showf["\n=== System Control Tests ===\n"];
+
+    // @clock - get timestamp
+    int start = @clock[];
+    showf["@clock[] = $start\n"];
+
+    // @sleep - sleep for 100ms
+    showf["@sleep[100] - sleeping 100ms...\n"];
+    @sleep[100];
+    int end = @clock[];
+    int elapsed = end - start;
+    showf["Elapsed: $elapsed ms (should be ~100)\n"];
+
+    // @compiler_ver
+    int ver = @compiler_ver[];
+    showf["@compiler_ver[] = $ver\n"];
+
+    get[0];
+}
+
+// ===== MEMORY OPERATIONS TESTS =====
+
+fnc test_memory[]::int {
+    showf["\n=== Memory Operations Tests ===\n"];
+
+    // @alloc / @peek / @poke
+    int ptr = @alloc[64];
+    showf["@alloc[64] = $ptr\n"];
+    if[ptr == 0] {
+        showf["ERROR: Allocation failed!\n"];
+        get[1];
+    }
+
+    // @poke and @peek
+    @poke[ptr, 42];
+    int val = @peek[ptr];
+    showf["@poke[ptr, 42] / @peek[ptr] = $val (expected 42)\n"];
+
+    // pointer arithmetic
+    @poke[ptr + 8, 100];
+    int val2 = @peek[ptr + 8];
+    showf["@peek[ptr + 8] = $val2 (expected 100)\n"];
+
+    // @memclr
+    @memclr[ptr, 16];
+    int cleared = @peek[ptr];
+    showf["@memclr[ptr, 16] / @peek[ptr] = $cleared (expected 0)\n"];
+
+    // @memset
+    @memset[ptr, 0xFF, 8];
+    int filled = @peek[ptr];
+    showf["@memset[ptr, 0xFF, 8] / @peek[ptr] = $filled\n"];
+
+    // @realloc
+    ptr = @realloc[ptr, 128];
+    showf["@realloc[ptr, 128] = $ptr\n"];
+
+    // @memcpy
+    int dest = @alloc[64];
+    @poke[ptr, 12345];
+    @memcpy[dest, ptr, 8];
+    int copied = @peek[dest];
+    showf["@memcpy / @peek[dest] = $copied (expected 12345)\n"];
+
+    // @memcmp - use ptr2 (new ptr after realloc) instead of old ptr
+    int cmp = @memcmp[ptr, dest, 8];
+    showf["@memcmp[ptr, dest, 8] = $cmp (expected 0)\n"];
+
+    // @page_size
+    int pgsz = @page_size[];
+    showf["@page_size[] = $pgsz\n"];
+
+    // @heap_start, @heap_end, @heap_size
+    int hs = @heap_start[];
+    int he = @heap_end[];
+    int hsz = @heap_size[];
+    showf["@heap_start[] = $hs\n"];
+    showf["@heap_end[] = $he\n"];
+    showf["@heap_size[] = $hsz\n"];
+
+    // @align
+    int aligned = @align[ptr, 16];
+    showf["@align[ptr, 16] = $aligned\n"];
+
+    // @free
+    @free[ptr];
+    @free[dest];
+    showf["@free done\n"];
+
+    get[0];
+}
+
+// ===== TYPE CONVERSION TESTS =====
+
+fnc test_type_conversion[]::int {
+    showf["\n=== Type Conversion Tests ===\n"];
+
+    // @len
+    int len1 = @len["hello"];
+    showf["@len[\"hello\"] = $len1 (expected 5)\n"];
+
+    // @ord / @chr
+    int code = @ord['A'];
+    showf["@ord['A'] = $code (expected 65)\n"];
+
+    char ch = @chr[65];
+    showf["@chr[65] = A (expected A)\n"];
+
+    get[0];
+}
+
+// ===== STRING OPERATIONS TESTS =====
+
+fnc test_strings[]::int {
+    showf["\n=== String Operations Tests ===\n"];
+
+    // @concat (2 args max)
+    str result = @concat["Hello", " World"];
+    showf["@concat[\"Hello\", \" World\"] = $result (expected Hello World)\n"];
+
+    // @substr
+    str sub = @substr["Hello World", 0, 5];
+    showf["@substr[\"Hello World\", 0, 5] = $sub (expected Hello)\n"];
+
+    str sub2 = @substr["Hello World", 6, 5];
+    showf["@substr[\"Hello World\", 6, 5] = $sub2 (expected World)\n"];
+
+    // @strcmp
+    int cmp1 = @strcmp["abc", "abc"];
+    showf["@strcmp[\"abc\", \"abc\"] = $cmp1 (expected 0)\n"];
+
+    int cmp2 = @strcmp["abc", "abd"];
+    showf["@strcmp[\"abc\", \"abd\"] = $cmp2 (expected negative)\n"];
+
+    get[0];
+}
+
+// ===== MATH / SECURITY TESTS =====
+
+fnc test_math_security[]::int {
+    showf["\n=== Math & Security Tests ===\n"];
+
+    // @rand
+    int r = @rand[4];
+    showf["@rand[4] = $r (random int)\n"];
+
+    // @hash (requires 2 args: data, algorithm)
+    int h = @hash["test data", 1];
+    showf["@hash[\"test data\", 1] = $h\n"];
+
+    get[0];
+}
+
+// ===== MAIN ENTRY =====
+
+fnc main[]::int {
+    showf["================================\n"];
+    showf[" RasCode Builtins Test Suite\n"];
+    showf["================================\n"];
+
+    int result;
+
+    result = test_system[];
+    if[result != 0] { get[result]; }
+
+    result = test_memory[];
+    if[result != 0] { get[result]; }
+
+    result = test_type_conversion[];
+    if[result != 0] { get[result]; }
+
+    result = test_strings[];
+    if[result != 0] { get[result]; }
+
+    result = test_math_security[];
+    if[result != 0] { get[result]; }
+
+    showf["\n================================\n"];
+    showf[" All builtin tests completed!\n"];
+    showf["================================\n"];
+
+    get[0];
+}

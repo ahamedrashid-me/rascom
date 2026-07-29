@@ -1,0 +1,20 @@
+// No parameters, returns int
+fnc count[]::int {
+    get[42];
+}
+
+// Multiple parameters, returns string
+fnc greet[name, age]::str {
+    str msg = @concat["Hello ", name];
+    get[msg];
+}
+
+// Nested group parameter
+fnc get_age[person]::int {
+    get[person.age];
+}
+
+// No explicit return statement (not recommended)
+fnc void_like[]::int {
+    show["Done"];
+}
