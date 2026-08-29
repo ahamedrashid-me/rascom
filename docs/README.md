@@ -1,7 +1,3 @@
-That index is the old, over-claimed version. It does not match the honest README or the real compiler.
-
-Here’s a rewritten **docs index** in the same tone as the official README — clear, accurate, and without Phase-9 marketing.
-
 ```markdown
 # RasCode Language Reference
 
@@ -162,5 +158,3 @@ When you find a mismatch, open a **Docs mismatch** issue with:
 
 **RasCode** — stay close to the metal.
 ```
-
----
