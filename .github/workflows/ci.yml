@@ -1,0 +1,44 @@
+name: RasCode CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc nasm binutils
+
+      - name: Build with Box
+        run: |
+          chmod +x ./Box
+          mkdir -p obj/runtime
+          ./Box -j$(nproc)
+
+      - name: Verify rascom binary
+        run: |
+          test -x ./rascom
+          ./rascom --version || ./rascom -v || true
+          ./rascom --help | head -5
+
+      - name: Smoke test — hello
+        run: |
+          cat > /tmp/hello.ras << 'EOF'
+          fnc main[]::int {
+              show["Hello from CI\n"];
+              get[0];
+          }
+          EOF
+
+          ./rascom /tmp/hello.ras -o /tmp/hello
+          /tmp/hello
