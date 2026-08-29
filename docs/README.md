@@ -1,6 +1,10 @@
 ```markdown
 # RasCode Language Reference
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/3b787f4d-063d-4842-9af7-156e7c144fc4" alt="RasCode" width="280">
+</p>
+
 Documentation for the RasCode language and `rascom` compiler.
 
 These docs are being aligned with the **actual** compiler behavior  
